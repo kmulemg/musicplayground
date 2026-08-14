@@ -29,22 +29,38 @@
 
 ## 📦 安装
 
-```bash
-# 1. 安装 Python 依赖（musicdl / flask / rookiepy）
-pip install -r requirements.txt
+**1. 下载本项目**
 
-# 2. 下载转码 / 流媒体工具（macOS 示例）
-brew install ffmpeg
-# N_m3u8DL-RE 手动下载安装，并保证在 PATH 中：
-#   https://github.com/nilaoda/N_m3u8DL-RE/releases
+方式一（推荐）：Git 克隆
+```bash
+git clone https://github.com/kmulemg/musicplayground.git
+cd musicplayground
 ```
+
+方式二：下载 ZIP 压缩包
+前往 [Releases 页面](https://github.com/kmulemg/musicplayground/releases) 点击「Source code (zip)」下载并解压，进入解压后的目录。
+
+**2. 环境要求**
+- Python 3.8+（本项目在 3.11 上验证）
+- macOS / Linux / Windows
+
+**3. 安装 Python 依赖**
+```bash
+pip install -r requirements.txt
+```
+
+**4. 安装外部工具**（按需）
+
+| 工具 | 用途 | 安装（macOS） |
+| --- | --- | --- |
+| [ffmpeg](https://ffmpeg.org) | FLAC→AAC 转码 | `brew install ffmpeg` |
+| [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases) | Apple Music 流媒体下载 | 下载二进制放入 PATH |
 
 > ⚠️ musicdl 的部分源需要打补丁才能正常工作（例如 Apple 源解析无歌词歌曲时可能崩溃），请根据你的 musicdl 版本按需修复。
 
 ## 🚀 启动
 
 ```bash
-pip install -r requirements.txt
 python app.py
 
 # 打开 http://127.0.0.1:5001
