@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -465,6 +466,26 @@ def download_file(relpath):
         return send_from_directory(root, relpath, as_attachment=True)
     # 默认：下载原始文件
     return send_from_directory(root, relpath, as_attachment=True)
+
+
+@app.route("/api/restart", methods=["POST"])
+def restart():
+    """重启服务：等待旧进程退出释放端口后，用相同命令重新启动。"""
+    def _do_restart():
+        time.sleep(0.5)  # 让当前 HTTP 响应先返回
+        python = sys.executable or "python"
+        script = os.path.abspath(__file__)
+        quoted = lambda s: "'" + s.replace("'", "'\\''") + "'"
+        # 等待旧进程退出（kill -0 探测），再 exec 启动新进程；start_new_session 脱离终端
+        cmd = (
+            "while kill -0 {pid} 2>/dev/null; do sleep 0.1; done; "
+            "exec {python} {script}"
+        ).format(pid=os.getpid(), python=quoted(python), script=quoted(script))
+        subprocess.Popen(["sh", "-c", cmd], start_new_session=True, close_fds=True)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    threading.Thread(target=_do_restart, daemon=True).start()
+    return jsonify({"ok": True, "message": "restarting"})
 
 
 if __name__ == "__main__":

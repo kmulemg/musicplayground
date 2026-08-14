@@ -18,6 +18,40 @@ async function api(url, opts) {
   return res.json();
 }
 
+async function restartServer() {
+  if (!confirm("确定要重启服务吗？重启过程中页面会短暂不可用，完成后自动刷新。")) return;
+  const btn = $("#restart-btn");
+  const status = $("#restart-status");
+  btn.disabled = true;
+  btn.textContent = "重启中…";
+  status.textContent = "";
+  try {
+    await fetch("/api/restart", { method: "POST" });
+  } catch (e) {
+    // 请求发出后服务可能立刻重启，忽略连接中断
+  }
+  // 轮询等待服务恢复，然后刷新页面
+  const deadline = Date.now() + 30000;
+  const poll = setInterval(async () => {
+    if (Date.now() > deadline) {
+      clearInterval(poll);
+      btn.disabled = false;
+      btn.textContent = "重启服务";
+      status.textContent = "重启超时，请手动刷新页面。";
+      return;
+    }
+    try {
+      const res = await fetch("/api/config");
+      if (res.ok) {
+        clearInterval(poll);
+        location.reload();
+      }
+    } catch (e) {
+      // 服务尚未恢复，继续轮询
+    }
+  }, 1500);
+}
+
 function fmtSize(bytes) {
   if (!bytes) return "";
   if (bytes > 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + "GB";
@@ -659,6 +693,7 @@ function init() {
   $("#deps-check-btn").addEventListener("click", () => loadDepsStatus(true));
   $("#refresh-files-btn").addEventListener("click", loadFiles);
   $("#log-refresh-btn").addEventListener("click", loadLogs);
+  $("#restart-btn").addEventListener("click", () => restartServer());
   $("#log-auto").addEventListener("change", (e) => {
     if (e.target.checked) { logTimer = setInterval(loadLogs, 4000); loadLogs(); }
     else clearInterval(logTimer);
