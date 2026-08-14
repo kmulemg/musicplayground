@@ -39,12 +39,18 @@ SOURCE_DOMAINS = {
     "MiguMusicClient": ["music.migu.cn", ".migu.cn"],
     "QianqianMusicClient": ["music.91q.com", ".91q.com"],
     "DeezerMusicClient": [".deezer.com"],
-    "SpotifyMusicClient": [".spotify.com"],
     "SoundCloudMusicClient": [".soundcloud.com"],
     "BilibiliMusicClient": [".bilibili.com"],
     "SodaMusicClient": [".douyin.com"],
     "JooxMusicClient": [".joox.com"],
     "QobuzMusicClient": [".qobuz.com"],
+    "TIDALMusicClient": [".tidal.com"],
+    "MOOVMusicClient": [".moov.hk"],
+    "BodianMusicClient": ["bodian.kuwo.cn", ".kuwo.cn"],
+    "FiveSingMusicClient": ["5sing.kugou.com", ".kugou.com"],
+    "StreetVoiceMusicClient": [".streetvoice.cn"],
+    "SunoMusicClient": ["suno.com", ".suno.com"],
+    "JioSaavnMusicClient": [".jiosaavn.com"],
 }
 
 BROWSERS = ["chrome", "firefox", "edge", "safari", "brave", "opera", "vivaldi"]
