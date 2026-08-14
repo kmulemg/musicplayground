@@ -33,17 +33,19 @@
 # 1. 安装 Python 依赖（musicdl / flask / rookiepy）
 pip install -r requirements.txt
 
-# 2. 下载转码 / 流媒体工具（macOS 示例）
+# 2. Apple Music 下载依赖（macOS）
 brew install ffmpeg
 # N_m3u8DL-RE 手动下载安装，并保证在 PATH 中：
 #   https://github.com/nilaoda/N_m3u8DL-RE/releases
 ```
 
-> ⚠️ musicdl 的部分源需要打补丁才能正常工作（例如 Apple 源解析无歌词歌曲时可能崩溃），请根据你的 musicdl 版本按需修复。
-
 ## 🚀 启动
 
 ```bash
+# 使用 Homebrew Python（已装 musicdl 并打了补丁）
+/opt/homebrew/bin/python3.11 app.py
+
+# 或先安装依赖再启动
 pip install -r requirements.txt
 python app.py
 
@@ -71,7 +73,23 @@ python app.py
 - **NeteaseMusicClient**：网页登录后复制 Cookie
 - **QQMusicClient / KuwoMusicClient / KugouMusicClient** 等：同理，均支持手动录入
 
-> ⚠️ `media-user-token` 等登录凭据会过期，过期后需重新从浏览器获取并在网页中更新。
+### 当前配置的 Apple Music Cookie
+
+```
+media-user-token: <REDACTED>=
+```
+
+即：
+
+```json
+{
+  "AppleMusicClient": {
+    "media-user-token": "<REDACTED>="
+  }
+}
+```
+
+> ⚠️ `media-user-token` 会过期，过期后需重新从浏览器获取并在网页中更新。
 
 ## 💾 下载与格式
 
@@ -102,7 +120,7 @@ downloads/
         └── サムライブルー - 22819802.m4a      ← 转 AAC 后无损与压缩版并存
 ```
 
-同名歌曲自动去重合并；旧版本（带时间戳前缀的目录）可用「任务 / 文件」页的**整理现有文件**按钮一键迁移。
+同名歌曲自动去重合并。
 
 ## 📥 文件页下载
 
@@ -156,13 +174,8 @@ musicplayground/
 └── README.md
 ```
 
-> `config.json` 与 `downloads/` 为运行时生成，已加入 `.gitignore`。
-
-## 📄 License
-
-本仓库采用 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)（见 [LICENSE](LICENSE)）：**仅限非商业用途**，禁止任何形式的商业化（销售、盈利性服务等）。
-
-本项目依赖 [musicdl](https://github.com/CharlesPikachu/musicdl)（同样采用 PolyForm Noncommercial 1.0.0），前端交互参考 [musicsquare](https://github.com/CharlesPikachu/musicsquare)。
+> ⚠️ 本机已对 `musicdl` 打补丁修复无歌词歌曲解析崩溃的问题（`modules/sources/apple.py` 第119行），
+> 需使用 Homebrew 的 Python 3.11（`/opt/homebrew/bin/python3.11`）运行，以复用已安装的 musicdl 与已打补丁的代码。
 
 ## 📄 免责声明
 

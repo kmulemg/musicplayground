@@ -658,24 +658,6 @@ function init() {
   $("#deps-refresh-btn").addEventListener("click", () => loadDepsStatus(false));
   $("#deps-check-btn").addEventListener("click", () => loadDepsStatus(true));
   $("#refresh-files-btn").addEventListener("click", loadFiles);
-  $("#organize-btn").addEventListener("click", async () => {
-    const btn = $("#organize-btn");
-    const status = $("#organize-status");
-    btn.disabled = true;
-    btn.textContent = "整理中…";
-    status.textContent = "";
-    try {
-      const res = await api("/api/organize", { method: "POST" });
-      if (!res.ok) throw new Error(res.error || "整理失败");
-      status.textContent = `已整理 ${res.moved} 个文件`;
-      await loadFiles();
-    } catch (err) {
-      status.textContent = "整理失败：" + err.message;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "整理现有文件";
-    }
-  });
   $("#log-refresh-btn").addEventListener("click", loadLogs);
   $("#log-auto").addEventListener("change", (e) => {
     if (e.target.checked) { logTimer = setInterval(loadLogs, 4000); loadLogs(); }

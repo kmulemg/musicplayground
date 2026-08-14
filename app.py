@@ -415,15 +415,6 @@ def list_files():
     return jsonify({"ok": True, "files": service.list_files()})
 
 
-@app.route("/api/organize", methods=["POST"])
-def organize_files():
-    try:
-        moved = service.organize_existing()
-        return jsonify({"ok": True, "moved": moved})
-    except Exception as err:
-        return jsonify({"ok": False, "error": str(err)}), 500
-
-
 @app.route("/api/logs")
 def get_logs():
     from musicdl.modules.utils.logger import LoggerHandle

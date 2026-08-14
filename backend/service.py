@@ -460,54 +460,6 @@ class MusicService:
                 break
             d = os.path.dirname(d)
 
-    def organize_existing(self):
-        """扫描现有文件，按 downloads/<来源>/<名称> 结构整理；返回移动数量。"""
-        root = os.path.abspath(self.cm.work_dir)
-        if not os.path.isdir(root):
-            return 0
-        moved = 0
-        for dirpath, _dirnames, filenames in os.walk(root):
-            for name in filenames:
-                full = os.path.join(dirpath, name)
-                rel_dir = os.path.relpath(dirpath, root).split(os.sep)
-                if len(rel_dir) < 2:
-                    continue  # 直接位于来源目录下，无法分类
-                source, folder = rel_dir[0], rel_dir[1]
-                clean = _strip_timestamp(folder)
-                if clean == folder:
-                    continue  # 已在整理后的目录
-                dest_dir = os.path.join(root, source, clean)
-                dest = os.path.join(dest_dir, name)
-                if os.path.abspath(dest) == os.path.abspath(full):
-                    continue
-                os.makedirs(dest_dir, exist_ok=True)
-                if os.path.exists(dest):
-                    if os.path.getsize(dest) == os.path.getsize(full):
-                        os.remove(full)
-                        moved += 1
-                        continue
-                    stem, ext = os.path.splitext(dest)
-                    i = 1
-                    while os.path.exists(f"{stem} ({i}){ext}"):
-                        i += 1
-                    dest = f"{stem} ({i}){ext}"
-                shutil.move(full, dest)
-                moved += 1
-        # 清理 .pkl 缓存与空的旧目录
-        for dirpath, _dirnames, filenames in os.walk(root, topdown=False):
-            for name in filenames:
-                if name.endswith(".pkl"):
-                    try:
-                        os.remove(os.path.join(dirpath, name))
-                    except Exception:
-                        pass
-            if dirpath != root and not os.listdir(dirpath):
-                try:
-                    os.rmdir(dirpath)
-                except Exception:
-                    pass
-        return moved
-
     def job(self, job_id):
         return self._jobs.get(job_id)
 
