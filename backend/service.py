@@ -7,6 +7,8 @@ import threading
 import time
 import uuid
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from musicdl import musicdl as musicdl_module
 from musicdl.modules import MusicClientBuilder
 from musicdl.modules.utils import cookies2dict, safeextractfromdict
@@ -146,6 +148,7 @@ class MusicService:
         self._client = None
         self._client_cfg_hash = None
         self._lock = threading.Lock()
+        self._organize_lock = threading.Lock()
         self._library = {}
         self._jobs = {}
         self._seq = 0
@@ -320,6 +323,46 @@ class MusicService:
             return None
         return None
 
+    def _download_one(self, client, song_info):
+        """下载单首歌曲，返回对应的 SongInfo；失败返回 None。"""
+        try:
+            results = client.download(song_infos=[song_info])
+        except Exception:
+            return None
+        for dl in results:
+            if dl is not None and dl.source == song_info.source and dl.identifier == song_info.identifier:
+                return dl
+        return None
+
+    def _finish_downloaded(self, job, item, song_info, dl, files, mode):
+        """处理一首已下载完成的歌曲：检查结果、转码、归位并更新状态。"""
+        if dl is None:
+            item["status"], item["detail"] = "error", "下载失败"
+            return
+        path = dl.save_path
+        if not path or not os.path.exists(path):
+            item["status"], item["detail"] = "error", "下载失败"
+            return
+        if mode == "aac":
+            item["status"], item["detail"] = "converting", "转换 AAC 中"
+            with self._organize_lock:
+                converted = convert_to_aac(path)
+                org_flac = self._organize(job["sid"], song_info.source, path)
+                files.append(org_flac)
+                item["file"] = org_flac
+                if converted != path:
+                    org_m4a = self._organize(job["sid"], song_info.source, converted)
+                    files.append(org_m4a)
+                    item["file"] = org_m4a
+                    item["status"], item["detail"] = "done", "完成（FLAC + AAC）"
+                else:
+                    item["status"], item["detail"] = "done", "完成"
+        else:
+            with self._organize_lock:
+                org = self._organize(job["sid"], song_info.source, path)
+                files.append(org)
+            item["status"], item["detail"], item["file"] = "done", "完成", org
+
     def _run_download(self, job, songs, mode):
         try:
             client = self._get_client()
@@ -364,39 +407,22 @@ class MusicService:
                     continue
                 item["status"], item["detail"] = "downloading", "下载中"
                 to_download.append((idx, song_info))
-            downloaded = client.download(song_infos=[s for _, s in to_download]) if to_download else []
-            # 按 (来源, ID) 对应已下载结果
-            downloaded_map = {}
-            for dl in downloaded:
-                downloaded_map[(dl.source, dl.identifier)] = dl
+            # 逐首下载：每下完一首就立即更新状态，前端可实时看到进度
             files = list(available)
-            for idx, song_info in to_download:
-                item = items[idx]
-                dl = downloaded_map.get((song_info.source, song_info.identifier))
-                if dl is None:
-                    item["status"], item["detail"] = "error", "下载失败"
-                    continue
-                path = dl.save_path
-                if not path or not os.path.exists(path):
-                    item["status"], item["detail"] = "error", "下载失败"
-                    continue
-                if mode == "aac":
-                    item["status"], item["detail"] = "converting", "转换 AAC 中"
-                    converted = convert_to_aac(path)
-                    org_flac = self._organize(job["sid"], song_info.source, path)
-                    files.append(org_flac)
-                    item["file"] = org_flac
-                    if converted != path:
-                        org_m4a = self._organize(job["sid"], song_info.source, converted)
-                        files.append(org_m4a)
-                        item["file"] = org_m4a
-                        item["status"], item["detail"] = "done", "完成（FLAC + AAC）"
-                    else:
-                        item["status"], item["detail"] = "done", "完成"
-                else:
-                    org = self._organize(job["sid"], song_info.source, path)
-                    files.append(org)
-                    item["status"], item["detail"], item["file"] = "done", "完成", org
+            if to_download:
+                num_workers = max(1, min(4, len(to_download)))
+                with ThreadPoolExecutor(max_workers=num_workers) as pool:
+                    future_to_idx = {
+                        pool.submit(self._download_one, client, song_info): idx
+                        for idx, song_info in to_download
+                    }
+                    for future in as_completed(future_to_idx):
+                        idx = future_to_idx[future]
+                        item, song_info = items[idx], songs[idx]
+                        self._finish_downloaded(job, item, song_info, future.result(), files, mode)
+                        job["done"] = sum(1 for it in items if it["status"] in {"done", "error"})
+            else:
+                job["done"] = sum(1 for it in items if it["status"] in {"done", "error"})
             # 去重文件列表
             seen, deduped = set(), []
             for f in files:
@@ -404,7 +430,6 @@ class MusicService:
                     seen.add(f)
                     deduped.append(f)
             job["files"] = deduped
-            job["done"] = sum(1 for it in items if it["status"] in {"done", "error"})
             job["status"] = "done"
         except Exception as err:
             job["status"] = "error"
