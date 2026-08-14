@@ -158,6 +158,12 @@ musicplayground/
 
 > `config.json` 与 `downloads/` 为运行时生成，已加入 `.gitignore`。
 
+## 📄 License
+
+本仓库采用 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)（见 [LICENSE](LICENSE)）：**仅限非商业用途**，禁止任何形式的商业化（销售、盈利性服务等）。
+
+本项目依赖 [musicdl](https://github.com/CharlesPikachu/musicdl)（同样采用 PolyForm Noncommercial 1.0.0），前端交互参考 [musicsquare](https://github.com/CharlesPikachu/musicsquare)。
+
 ## 📄 免责声明
 
 本工具仅供个人学习与合法使用。请遵守所在国家/地区的法律法规，仅下载拥有合法权限的音乐内容。Cookie 属于敏感凭据，请勿将 `config.json` 提交到公开仓库。
