@@ -49,13 +49,23 @@ cd musicplayground
 pip install -r requirements.txt
 ```
 
-**4. 安装外部工具**（按需）
+**4. 安装外部工具**（按需，依据 [musicdl 官方文档](https://musicdl.readthedocs.io/)）
 
-| 工具 | 用途 | 安装（macOS） |
+| 工具 | 用途 | 需要的音乐源 |
 | --- | --- | --- |
-| [ffmpeg](https://ffmpeg.org) | FLAC→AAC 转码 | `brew install ffmpeg` |
-| [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases) | Apple Music 流媒体下载 | 下载二进制放入 PATH |
+| [ffmpeg](https://ffmpeg.org) | 转码（FLAC→AAC）与音频处理 | Apple Music、MOOV、SoundCloud、StreetVoice、TIDAL |
+| [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases) | MPD / M3U8 / ISM 流媒体下载 | Apple Music、MOOV、SoundCloud、TIDAL |
+| [Bento4](https://www.bento4.com/downloads/) | 提供 `mp4decrypt`，解密加密音频 | Apple Music、MOOV、SoundCloud、TIDAL |
+| [amdecrypt](https://github.com/CharlesPikachu/musicdl/releases/tag/clitools) | 解密 Apple Music 歌曲（需先装 Bento4） | Apple Music |
+| [Node.js](https://nodejs.org/) | JavaScript 运行时 | YouTube Music |
 
+macOS 安装：
+```bash
+brew install ffmpeg bento4
+# N_m3u8DL-RE / amdecrypt：从各自 Releases 页面下载二进制放入 PATH
+```
+
+> 若仅使用网易云、QQ 音乐等中国区源，则只需 ffmpeg（FLAC→AAC 转码用），其余工具可跳过。
 > ⚠️ musicdl 的部分源需要打补丁才能正常工作（例如 Apple 源解析无歌词歌曲时可能崩溃），请根据你的 musicdl 版本按需修复。
 
 ## 🚀 启动
