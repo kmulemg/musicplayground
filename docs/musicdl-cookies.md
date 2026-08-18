@@ -100,7 +100,7 @@
     'dfid': 'xxx',
   }
   ```
-- 说明：⚠️ 直接从网页复制的酷狗会员 cookie 容易出问题，官方推荐用脚本 [build_cookies_for_kugou.py](https://github.com/CharlesPikachu/musicdl/blob/master/scripts/build_cookies_for_kugou.py) 生成有效 cookie
+- 说明：直接从网页复制的酷狗会员 cookie 容易出问题，官方推荐用脚本 [build_cookies_for_kugou.py](https://github.com/CharlesPikachu/musicdl/blob/master/scripts/build_cookies_for_kugou.py) 生成有效 cookie
 
 ### JooxMusicClient
 
@@ -123,6 +123,22 @@
 | BilibiliMusicClient | 登录后 cookie |
 | FiveSingMusicClient | 登录后 cookie |
 | SpotifyMusicClient | 内置会员账号 |
+
+---
+
+## 夸克网盘 Cookie（quark_parser_config）
+
+聚合/小众下载站（MyFreeMP3、Buguyy、Fangpi、FiveSong、Gequbao、Gequhai、KKWS、LivePOO、LiziYY、MGMP3、Mitu、Sgogo、Xiageba、XMFWAV、Yinyuedao 等）的部分搜索结果会落到夸克网盘分享链接。**不配置夸克网盘 Cookie 时，这类源只能下载 MP3，无法下载更高清（如 FLAC）文件**；配置后即可解析网盘链接下载更高音质。
+
+- **传参方式**：在客户端配置中加入 `quark_parser_config: {"cookies": "..."}`：
+  ```
+  musicdl -m MyFreeMP3MusicClient -i "{'MyFreeMP3MusicClient': {'quark_parser_config': {'cookies': 'Your Quark Drive Login Cookies'}}}"
+  ```
+- **Cookie 内容**：登录 https://pan.quark.cn 后的完整浏览器 Cookie，支持 `{"k": "v", ...}` 或 `k=v; k2=v2` 两种格式
+- **说明**：
+  - 夸克网盘登录 Cookie 为各聚合站共用，本工具在「Cookie 管理」中提供统一的「夸克网盘」条目，保存后自动应用到上述所有聚合站源
+  - 可在浏览器登录 https://pan.quark.cn 后，用「一键导入全部 Cookie」或单源「导入」自动读取
+  - 参考官方 Clients 文档：MyFreeMP3MusicClient / BuguyyMusicClient / FangpiMusicClient / FiveSongMusicClient / GequbaoMusicClient / GequhaiMusicClient / KKWSMusicClient / LivePOOMusicClient / LiziYYMusicClient / MGMP3MusicClient / MituMusicClient / SgogoMusicClient / XiagebaMusicClient / XMFWAVMusicClient / YinyuedaoMusicClient
 
 ---
 

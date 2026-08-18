@@ -353,9 +353,9 @@ def deps_status():
             }
         )
     tools = [
-        _check_tool("ffmpeg", ["-version"], 2),
-        _check_tool("N_m3u8DL-RE", ["--version"], 2),
-        _check_tool("MP4Box", ["-version"], 2),
+        {**_check_tool("ffmpeg", ["-version"], 2), "required_by": "FLAC→AAC 转码"},
+        {**_check_tool("N_m3u8DL-RE", ["--version"], 2), "required_by": "AppleMusicClient"},
+        {**_check_tool("mp4decrypt", ["-version"], 0), "required_by": "N_m3u8DL-RE（解密受保护音频流）"},
     ]
     return jsonify(
         {
@@ -442,6 +442,9 @@ def list_files():
     return jsonify({"ok": True, "files": service.list_files()})
 
 
+_WERKZEUG_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - werkzeug -")
+
+
 @app.route("/api/logs")
 def get_logs():
     from musicdl.modules.utils.logger import LoggerHandle
@@ -453,7 +456,9 @@ def get_logs():
     try:
         with open(log_path, "r", encoding="utf-8", errors="replace") as fp:
             content = fp.read()
-        log_lines = content.splitlines()[-max(1, min(num_lines, 2000)):]
+        all_lines = content.splitlines()
+        log_lines = [l for l in all_lines if not _WERKZEUG_RE.match(l)]
+        log_lines = log_lines[-max(1, min(num_lines, 2000)):]
         return jsonify({"ok": True, "file": log_path, "lines": log_lines})
     except Exception as err:
         return jsonify({"ok": False, "error": str(err)}), 500
@@ -506,6 +511,17 @@ def download_file(relpath):
         return send_from_directory(root, relpath, as_attachment=True)
     # 默认：下载原始文件
     return send_from_directory(root, relpath, as_attachment=True)
+
+
+@app.route("/api/shutdown", methods=["POST"])
+def shutdown():
+    """终止服务：优雅关闭当前进程。"""
+    def _do_shutdown():
+        time.sleep(0.5)  # 让当前 HTTP 响应先返回
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    threading.Thread(target=_do_shutdown, daemon=True).start()
+    return jsonify({"ok": True, "message": "shutting down"})
 
 
 @app.route("/api/restart", methods=["POST"])

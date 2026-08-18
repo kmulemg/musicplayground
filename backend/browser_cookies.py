@@ -27,6 +27,10 @@ COOKIE_SUPPORTED_SOURCES = {
     "StreetVoiceMusicClient",
     "SunoMusicClient",
     "TIDALMusicClient",
+    # 虚拟源：夸克网盘登录 Cookie，用于给聚合下载站配置 quark_parser_config
+    # 官方文档（https://musicdl.readthedocs.io/en/latest/Clients.html）中
+    # MyFreeMP3MusicClient / BuguyyMusicClient 等源的 quark_parser_config 说明
+    "QuarkMusicClient",
 }
 
 
@@ -51,6 +55,7 @@ SOURCE_DOMAINS = {
     "StreetVoiceMusicClient": [".streetvoice.cn"],
     "SunoMusicClient": ["suno.com", ".suno.com"],
     "JioSaavnMusicClient": [".jiosaavn.com"],
+    "QuarkMusicClient": ["pan.quark.cn", ".quark.cn"],
 }
 
 BROWSERS = ["chrome", "firefox", "edge", "safari", "brave", "opera", "vivaldi"]

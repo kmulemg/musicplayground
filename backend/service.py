@@ -18,6 +18,184 @@ from .cookie_manager import CookieManager
 
 ALL_SOURCES = sorted(MusicClientBuilder.REGISTERED_MODULES.keys())
 
+# 虚拟音乐源：仅用于存放夸克网盘登录 Cookie，不作为可启用的搜索/下载源。
+# 配置后会自动应用到下方 SOURCES_NEED_QUARK 中各聚合下载站的
+# quark_parser_config（官方文档：MyFreeMP3MusicClient 等源需该配置才能下更高清文件）。
+QUARK_SOURCE = "QuarkMusicClient"
+
+# 音乐源 Cookie 依赖分类（依据 musicdl 官方文档 Clients 页说明整理）：
+#   none    = 无需 cookie，开箱即用（含内置会员账号）
+#   needed  = 需平台登录/会员 Cookie 才能下载高清/无损/已购买歌曲
+#   quark   = 需夸克网盘 Cookie 才能下载更高清文件（聚合下载站）
+#   preview = 不配 cookie 只能下载预览片段或无法下载
+SOURCES_NEED_COOKIE = {
+    # 国内商业平台：内置账号仅一般音质，需登录/会员 Cookie 才能下高清/无损/已购买
+    "NeteaseMusicClient",
+    "QQMusicClient",
+    "KugouMusicClient",
+    "KuwoMusicClient",
+    "MiguMusicClient",
+    "QianqianMusicClient",
+    "BilibiliMusicClient",
+    "SodaMusicClient",
+    "BodianMusicClient",
+    # 国际商业平台：需登录/付费 Cookie 才能下高清/无损
+    "QobuzMusicClient",
+    "SoundCloudMusicClient",
+    "JooxMusicClient",
+    "JioSaavnMusicClient",
+    "MOOVMusicClient",
+    "TIDALMusicClient",
+}
+
+SOURCES_NEED_QUARK = {
+    # 聚合下载站：需夸克网盘 Cookie 才能下载更高清文件
+    "BuguyyMusicClient",
+    "FangpiMusicClient",
+    "FiveSongMusicClient",
+    "GequbaoMusicClient",
+    "GequhaiMusicClient",
+    "KKWSMusicClient",
+    "LivePOOMusicClient",
+    "LiziYYMusicClient",
+    "MGMP3MusicClient",
+    "MituMusicClient",
+    "MyFreeMP3MusicClient",
+    "SgogoMusicClient",
+    "XMFWAVMusicClient",
+    "XiagebaMusicClient",
+    "YinyuedaoMusicClient",
+}
+
+SOURCES_PREVIEW_ONLY = {
+    # 不配 cookie 只能下载 30-90 秒预览片段
+    "AppleMusicClient",
+    "DeezerMusicClient",
+}
+
+SOURCES_REQUIRE_QUARK = {
+    # 硬性要求夸克网盘 Cookie 的聚合站：musicdl 这些源的 __init__ 用 assert 校验
+    # quark_parser_config，未配置时构造客户端即抛异常，连搜索/歌单都会整体失败。
+    # 因此在未配置夸克 Cookie 时，服务会自动跳过这些源（配置后重建自动启用）。
+    "FiveSongMusicClient",
+    "KKWSMusicClient",
+    "LiziYYMusicClient",
+    "XiagebaMusicClient",
+}
+
+
+def source_cookie_class(source):
+    """返回音乐源的 cookie 分类：none / needed / quark / preview。"""
+    if source in SOURCES_NEED_QUARK:
+        return "quark"
+    if source in SOURCES_NEED_COOKIE:
+        return "needed"
+    if source in SOURCES_PREVIEW_ONLY:
+        return "preview"
+    return "none"
+
+
+def cookie_classes(all_sources):
+    return {s: source_cookie_class(s) for s in all_sources}
+
+# 音乐源分组（地区 + 平台类型），供设置页分组展示与整组操作
+SOURCE_GROUPS = [
+    {
+        "name": "国内主流平台",
+        "sources": [
+            "NeteaseMusicClient",
+            "QQMusicClient",
+            "KugouMusicClient",
+            "KuwoMusicClient",
+            "MiguMusicClient",
+            "QianqianMusicClient",
+            "BilibiliMusicClient",
+            "SodaMusicClient",
+            "BodianMusicClient",
+        ],
+    },
+    {
+        "name": "国际主流平台",
+        "sources": [
+            "AppleMusicClient",
+            "SpotifyMusicClient",
+            "DeezerMusicClient",
+            "QobuzMusicClient",
+            "TIDALMusicClient",
+            "SoundCloudMusicClient",
+            "YouTubeMusicClient",
+            "JooxMusicClient",
+            "MOOVMusicClient",
+            "JioSaavnMusicClient",
+            "ITunesMusicClient",
+            "AudiusMusicClient",
+            "SunoMusicClient",
+        ],
+    },
+    {
+        "name": "独立原创 / 免费版权",
+        "sources": [
+            "FiveSingMusicClient",
+            "StreetVoiceMusicClient",
+            "JamendoMusicClient",
+            "FMAMusicClient",
+            "CCMixterMusicClient",
+            "OpenGameArtMusicClient",
+            "WikimediaCommonsMusicClient",
+        ],
+    },
+    {
+        "name": "播客 / 有声书 / 电台",
+        "sources": [
+            "XimalayaMusicClient",
+            "LizhiMusicClient",
+            "QingtingMusicClient",
+            "LRTSMusicClient",
+        ],
+    },
+    {
+        "name": "聚合 / 小众下载站",
+        "sources": [
+            "MP3JuiceMusicClient",
+            "TuneHubMusicClient",
+            "GDStudioMusicClient",
+            "MyFreeMP3MusicClient",
+            "JBSouMusicClient",
+            "XiaoBaiMusicClient",
+            "MituMusicClient",
+            "BuguyyMusicClient",
+            "GequbaoMusicClient",
+            "YinyuedaoMusicClient",
+            "XiagebaMusicClient",
+            "FangpiMusicClient",
+            "FiveSongMusicClient",
+            "KKWSMusicClient",
+            "GequhaiMusicClient",
+            "LivePOOMusicClient",
+            "HTQYYMusicClient",
+            "TwoT58MusicClient",
+            "ZhuolinMusicClient",
+            "LiziYYMusicClient",
+            "MGMP3MusicClient",
+            "ITingWaMusicClient",
+            "SgogoMusicClient",
+            "XMFWAVMusicClient",
+        ],
+    },
+]
+
+
+def source_groups(all_sources):
+    """返回分组列表，并兜底收集未被任何分组收录的源。"""
+    grouped = set()
+    groups = [{"name": g["name"], "sources": [s for s in g["sources"] if s in all_sources]} for g in SOURCE_GROUPS]
+    for g in groups:
+        grouped.update(g["sources"])
+    rest = [s for s in all_sources if s not in grouped]
+    if rest:
+        groups.append({"name": "其他", "sources": rest})
+    return [g for g in groups if g["sources"]]
+
 # 域名 → 音乐源（基于 musicdl 官方 hosts 常量构建）
 _HOST_CONST_TO_SOURCE = {
     "APPLE_MUSIC_HOSTS": "AppleMusicClient",
@@ -147,6 +325,7 @@ class MusicService:
         self.cm = cookie_manager
         self._client = None
         self._client_cfg_hash = None
+        self._disabled_sources = []
         self._lock = threading.Lock()
         self._organize_lock = threading.Lock()
         self._library = {}
@@ -163,9 +342,19 @@ class MusicService:
             sort_keys=True,
         )
 
-    def _build_init_cfg(self):
+    def _effective_sources(self):
+        """去掉未配置夸克 Cookie 时无法实例化的硬性聚合源，返回实际可用源。"""
+        quark_cookies = self.cm.get(QUARK_SOURCE)
+        return [
+            s for s in self.cm.sources
+            if not (s in SOURCES_REQUIRE_QUARK and not quark_cookies)
+        ]
+
+    def _build_init_cfg(self, sources=None):
         init_cfg = {}
-        for source in self.cm.sources:
+        sources = self.cm.sources if sources is None else sources
+        quark_cookies = self.cm.get(QUARK_SOURCE)
+        for source in sources:
             cookies = self.cm.get(source)
             cfg = {
                 "work_dir": self.cm.work_dir,
@@ -173,6 +362,8 @@ class MusicService:
                 "search_size_per_source": 10,
                 "max_retries": 2,
             }
+            if source in SOURCES_NEED_QUARK and quark_cookies:
+                cfg["quark_parser_config"] = {"cookies": quark_cookies}
             if cookies:
                 cfg["default_search_cookies"] = cookies
                 cfg["default_download_cookies"] = cookies
@@ -181,14 +372,17 @@ class MusicService:
         return init_cfg
 
     def _build_client(self):
-        request_overrides = {
-            source: {"timeout": (8, 20), "headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}}
-            for source in self.cm.sources
-        }
+        sources = self._effective_sources()
+        self._disabled_sources = [s for s in self.cm.sources if s not in sources]
+        # 不注入全局 request_overrides（headers/timeout 等）：
+        # musicdl 会把 request_overrides 通过 **kwargs 展开到 get/post，
+        # 而部分源（TwoT58/ITingWa/GDStudio/TuneHub/JBSou 等）自己又显式传
+        # headers=/timeout=，会触发 "got multiple values for keyword argument"
+        # 导致整批源搜索失败。让各源走自身默认请求即可。
         return musicdl_module.MusicClient(
-            music_sources=self.cm.sources,
-            init_music_clients_cfg=self._build_init_cfg(),
-            requests_overrides=request_overrides,
+            music_sources=sources,
+            init_music_clients_cfg=self._build_init_cfg(sources),
+            requests_overrides={source: {} for source in sources},
         )
 
     def _get_client(self):
@@ -198,6 +392,16 @@ class MusicService:
                 self._client = self._build_client()
                 self._client_cfg_hash = cfg_hash
             return self._client
+
+    def disabled_sources(self):
+        """因未配置夸克网盘 Cookie 而被跳过的硬性聚合源（配置后自动恢复）。"""
+        self._get_client()
+        return list(self._disabled_sources)
+
+    def reset_client(self):
+        with self._lock:
+            self._client = None
+            self._client_cfg_hash = None
 
     def _store(self, kind, songs, source=None, name=None):
         self._seq += 1
@@ -209,7 +413,20 @@ class MusicService:
             "songs": list(songs),
             "created": time.time(),
         }
+        self._trim_library()
         return sid
+
+    def _trim_library(self, max_entries=200):
+        if len(self._library) > max_entries:
+            oldest = sorted(self._library, key=lambda k: self._library[k]["created"])
+            for k in oldest[: len(self._library) - max_entries]:
+                self._library.pop(k, None)
+
+    def _trim_jobs(self, max_entries=50):
+        if len(self._jobs) > max_entries:
+            oldest = sorted(self._jobs, key=lambda k: self._jobs[k]["created"])
+            for k in oldest[: len(self._jobs) - max_entries]:
+                self._jobs.pop(k, None)
 
     def get_songs(self, sid, ids=None):
         entry = self._library.get(sid)
@@ -302,6 +519,7 @@ class MusicService:
             ],
         }
         self._jobs[job_id] = job
+        self._trim_jobs()
         threading.Thread(target=self._run_download, args=(job, songs, mode), daemon=True).start()
         return job_id
 
@@ -429,7 +647,7 @@ class MusicService:
                 if f not in seen:
                     seen.add(f)
                     deduped.append(f)
-            job["files"] = deduped
+            job["files"] = [os.path.relpath(f, self.cm.work_dir) for f in deduped]
             job["status"] = "done"
         except Exception as err:
             job["status"] = "error"

@@ -52,6 +52,22 @@ async function restartServer() {
   }, 1500);
 }
 
+async function shutdownServer() {
+  if (!confirm("确定要终止服务吗？终止后服务将停止运行，请手动刷新页面。")) return;
+  const btn = $("#shutdown-btn");
+  const status = $("#restart-status");
+  btn.disabled = true;
+  btn.textContent = "终止中…";
+  status.textContent = "";
+  try {
+    await fetch("/api/shutdown", { method: "POST" });
+    status.textContent = "服务已终止，请关闭页面或手动刷新。";
+  } catch (e) {
+    // 请求发出后服务可能立刻关闭，忽略连接中断
+    status.textContent = "服务已终止，请关闭页面或手动刷新。";
+  }
+}
+
 function fmtSize(bytes) {
   if (!bytes) return "";
   if (bytes > 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + "GB";
@@ -129,14 +145,33 @@ const SOURCE_NAMES = {
   "ITingWaMusicClient": "爱听哇",
   "SgogoMusicClient": "SGOGO",
   "XMFWAVMusicClient": "笑模音乐",
+  "QuarkMusicClient": "夸克网盘",
 };
 
 function sourceName(source) {
   return SOURCE_NAMES[source] || (source || "").replace(/MusicClient$/, "").toUpperCase();
 }
 
+const COOKIE_CLASS_INFO = {
+  none: { cls: "src-ok", label: "无需 Cookie，开箱即用" },
+  needed: { cls: "src-cookie", label: "需平台登录/会员 Cookie，可下载高清 / 无损 / 已购买" },
+  quark: { cls: "src-quark", label: "需夸克网盘 Cookie，可下载更高清文件" },
+  preview: { cls: "src-preview", label: "不配 Cookie 仅可下载预览或无法下载" },
+};
+
+function sourceCookieInfo(source) {
+  const cc = config.cookie_classes && config.cookie_classes[source];
+  return COOKIE_CLASS_INFO[cc] || COOKIE_CLASS_INFO.none;
+}
+
 function sourceBadge(source) {
   return `<span class="badge">${escapeHtml(sourceName(source))}</span>`;
+}
+
+function disabledSourcesNote(disabled) {
+  if (!disabled || !disabled.length) return "";
+  const names = disabled.map(sourceName).join("、");
+  return `提示：${names} 需配置「夸克网盘」Cookie 才能使用，当前已跳过（可在「设置 → Cookie 管理」底部录入后自动恢复）。`;
 }
 
 function renderSongs(bodySel, songs) {
@@ -194,7 +229,8 @@ async function doSearch() {
     currentSid = data.sid;
     currentKind = "search";
     renderSongs("#search-body", data.songs);
-    setStatus("#search-status", "");
+    const note = disabledSourcesNote(data.disabled_sources);
+    setStatus("#search-status", note);
     refreshSelectionState();
   } catch (err) {
     setStatus("#search-status", "搜索出错：" + err.message, true);
@@ -219,7 +255,7 @@ async function doPlaylist() {
     if (!data.songs.length) {
       setStatus("#playlist-status", "歌单解析成功，但未获取到可下载的歌曲。请检查 Cookie 是否有效（media-user-token 可能已过期）。", true);
     } else {
-      setStatus("#playlist-status", "");
+      setStatus("#playlist-status", disabledSourcesNote(data.disabled_sources));
     }
     refreshSelectionState();
   } catch (err) {
@@ -362,7 +398,7 @@ async function pollUpdate() {
 function depsStatusBadge(pkg) {
   if (!pkg.installed) return `<span class="deps-missing">未安装</span>`;
   if (pkg.latest && pkg.latest !== pkg.installed) return `<span class="deps-warn">可更新 → ${escapeHtml(pkg.latest)}</span>`;
-  if (pkg.satisfied) return `<span class="deps-ok">已满足 ✓</span>`;
+  if (pkg.satisfied) return `<span class="deps-ok">已满足</span>`;
   return `<span class="deps-warn">版本不符</span>`;
 }
 
@@ -389,7 +425,8 @@ async function loadDepsStatus(refresh) {
       <tr>
         <td><strong>${escapeHtml(t.name)}</strong></td>
         <td class="muted">${t.found ? (t.version ? escapeHtml(t.version) : "已安装") : `<span class="deps-missing">未安装</span>`}</td>
-        <td>${t.found ? `<span class="deps-ok">可用 ✓</span>` : `<span class="deps-missing">缺失 ✗</span>`}</td>
+        <td class="muted">${t.required_by ? escapeHtml(t.required_by) : "—"}</td>
+        <td>${t.found ? `<span class="deps-ok">可用</span>` : `<span class="deps-missing">缺失</span>`}</td>
       </tr>`
       )
       .join("");
@@ -406,10 +443,10 @@ async function loadDepsStatus(refresh) {
         </table>
       </div>
       <div class="deps-block">
-        <div class="deps-block-title">外部工具</div>
+        <div class="deps-block-title">外部 CLI 工具</div>
         <table class="deps-table">
-          <thead><tr><th>工具</th><th>版本</th><th>状态</th></tr></thead>
-          <tbody>${toolRows || `<tr><td colspan="3" class="muted">无</td></tr>`}</tbody>
+          <thead><tr><th>工具</th><th>版本</th><th>Required By</th><th>状态</th></tr></thead>
+          <tbody>${toolRows || `<tr><td colspan="4" class="muted">无</td></tr>`}</tbody>
         </table>
       </div>
     `;
@@ -418,19 +455,69 @@ async function loadDepsStatus(refresh) {
   }
 }
 
+function syncGroupCheck(group) {
+  const checks = Array.from(group.querySelectorAll(".src-check"));
+  const on = checks.filter((c) => c.checked).length;
+  const gc = group.querySelector(".group-check");
+  if (gc) {
+    gc.checked = on > 0 && on === checks.length;
+    gc.indeterminate = on > 0 && on < checks.length;
+  }
+}
+
 function renderSources() {
   const box = $("#source-list");
   box.innerHTML = "";
-  config.all_sources.forEach((s) => {
-    const on = config.sources.includes(s);
-    const chip = document.createElement("label");
-    chip.className = "source-chip" + (on ? "" : " off");
-    chip.innerHTML = `<input type="checkbox" class="src-check" data-src="${escapeHtml(s)}" ${on ? "checked" : ""}> ${escapeHtml(sourceName(s))}`;
-    chip.querySelector("input").addEventListener("change", (e) => {
-      chip.classList.toggle("off", !e.target.checked);
+  const groups = config.source_groups && config.source_groups.length
+    ? config.source_groups
+    : [{ name: "全部音乐源", sources: config.all_sources }];
+  groups.forEach((g, gi) => {
+    const group = document.createElement("div");
+    group.className = "source-group";
+    group.dataset.group = gi;
+    const head = document.createElement("div");
+    head.className = "source-group-head";
+    head.innerHTML = `
+      <span class="source-group-name">${escapeHtml(g.name)}</span>
+      <span class="muted">${g.sources.length} 个源</span>
+      <label class="group-toggle"><input type="checkbox" class="group-check" data-group="${gi}"> 全选本组</label>
+    `;
+    const chips = document.createElement("div");
+    chips.className = "source-group-chips";
+    g.sources.forEach((s) => {
+      const on = config.sources.includes(s);
+      const disabled = (config.disabled_sources || []).includes(s);
+      const info = sourceCookieInfo(s);
+      const chip = document.createElement("label");
+      chip.className = "source-chip " + info.cls + (on ? "" : " off") + (disabled ? " disabled" : "");
+      chip.title = (disabled ? "已启用但因未配置夸克网盘 Cookie 被跳过（搜索不返回结果）\n" : "") + info.label;
+      chip.innerHTML = `<span class="src-dot"></span><input type="checkbox" class="src-check" data-src="${escapeHtml(s)}" ${on ? "checked" : ""}> ${escapeHtml(sourceName(s))}${disabled ? " <span class='src-disabled-tag'>待配夸克</span>" : ""}`;
+      chip.querySelector("input").addEventListener("change", (e) => {
+        chip.classList.toggle("off", !e.target.checked);
+        syncGroupCheck(group);
+      });
+      chips.appendChild(chip);
     });
-    box.appendChild(chip);
+    head.querySelector(".group-check").addEventListener("change", (e) => {
+      toggleGroupSources(gi, e.target.checked);
+    });
+    group.appendChild(head);
+    group.appendChild(chips);
+    box.appendChild(group);
   });
+  $$(".source-group").forEach(syncGroupCheck);
+}
+
+function toggleGroupSources(groupIdx, on) {
+  const group = document.querySelector(`.source-group[data-group="${groupIdx}"]`);
+  if (!group) return;
+  group.querySelectorAll(".src-check").forEach((c) => {
+    c.checked = on;
+    c.closest(".source-chip").classList.toggle("off", !on);
+  });
+  const gc = group.querySelector(".group-check");
+  gc.checked = on;
+  gc.indeterminate = false;
 }
 
 function toggleAllSources(on) {
@@ -438,6 +525,23 @@ function toggleAllSources(on) {
     c.checked = on;
     c.closest(".source-chip").classList.toggle("off", !on);
   });
+  $$(".source-group").forEach(syncGroupCheck);
+}
+
+function cookieClassOf(src) {
+  const cc = config.cookie_classes && config.cookie_classes[src];
+  return cc || "none";
+}
+
+function toggleClassSources(cls) {
+  const checks = Array.from($$(".src-check")).filter((c) => cookieClassOf(c.dataset.src) === cls);
+  if (!checks.length) return;
+  const target = !checks.every((c) => c.checked);
+  checks.forEach((c) => {
+    c.checked = target;
+    c.closest(".source-chip").classList.toggle("off", !target);
+  });
+  $$(".source-group").forEach(syncGroupCheck);
 }
 
 async function saveSources() {
@@ -456,13 +560,22 @@ async function saveSources() {
 function renderCookieRows() {
   const tbody = $("#cookie-body");
   tbody.innerHTML = "";
-  const cookieSources = (config.cookie_supported_sources || []).filter((s) => config.all_sources.includes(s));
+  const supported = config.cookie_supported_sources || [];
+  const cookieSources = supported.filter((s) => config.all_sources.includes(s));
+  if (config.quark_source && supported.includes(config.quark_source) && !cookieSources.includes(config.quark_source)) {
+    cookieSources.push(config.quark_source);
+  }
   cookieSources.forEach((s) => {
     const val = config.cookies[s] ? JSON.stringify(config.cookies[s], null, 2) : "";
     const tr = document.createElement("tr");
     const hasDomains = config.domains && config.domains[s] && config.domains[s].length;
+    const hint = s === "AppleMusicClient"
+      ? `需 media-user-token`
+      : s === config.quark_source
+        ? `需登录 https://pan.quark.cn 后的完整 Cookie`
+        : "";
     tr.innerHTML = `
-      <td><strong>${escapeHtml(sourceName(s))}</strong>${s === "AppleMusicClient" ? `<br><span class="muted">需 media-user-token</span>` : ""}</td>
+      <td><strong>${escapeHtml(sourceName(s))}</strong>${hint ? `<br><span class="muted">${escapeHtml(hint)}</span>` : ""}</td>
       <td><textarea data-cookie-src="${escapeHtml(s)}" placeholder="留空则清除；支持 JSON 或 k=v; k2=v2">${escapeHtml(val)}</textarea></td>
       <td style="display:flex;flex-direction:column;gap:6px;min-width:140px;">
         ${hasDomains ? `
@@ -507,7 +620,7 @@ function bindCookieActions() {
         }
         const ta = document.querySelector(`textarea[data-cookie-src="${CSS.escape(src)}"]`);
         ta.value = JSON.stringify(res.cookies, null, 2);
-        $("#cookie-status").textContent = `已从 ${browser} 读取 ${Object.keys(res.cookies).length} 个 Cookie（含 ${res.cookies["media-user-token"] ? "media-user-token ✓" : "提示：未含 media-user-token"}）。点击「保存」生效。`;
+        $("#cookie-status").textContent = `已从 ${browser} 读取 ${Object.keys(res.cookies).length} 个 Cookie（含 ${res.cookies["media-user-token"] ? "media-user-token" : "提示：未含 media-user-token"}）。点击「保存」生效。`;
       } catch (err) {
         $("#cookie-status").textContent = "导入失败：" + err.message;
       } finally {
@@ -574,8 +687,8 @@ async function loadJobs() {
     const card = document.createElement("div");
     card.className = "job-card";
     const files = (j.files || []).map((f) => {
-      const rel = f.split(/[\\/]/).pop();
-      return `<a href="/api/download-file/${encodeURIComponent(rel)}" download>${escapeHtml(rel)}</a>`;
+      const name = f.split(/[\\/]/).pop();
+      return `<a href="/api/download-file/${encodeURIComponent(f)}" download>${escapeHtml(name)}</a>`;
     }).join("，");
     const items = (j.items || []).map((it, i) => `
       <div class="job-item">
@@ -651,12 +764,33 @@ function playPreview(url, name) {
 
 const ANSI_RE = /\u001b\[[0-9;]*[a-zA-Z]/g;
 
+let logFilterLevel = "all";
+let logSearchQuery = "";
+
+function classifyLogLine(line) {
+  const cleaned = line.replace(ANSI_RE, "");
+  if (/\b(ERROR|Error|Traceback|Exception)\b/.test(cleaned)) return "error";
+  if (/\b(WARNING|WARN)\b/.test(cleaned)) return "warn";
+  return "info";
+}
+
 function escapeLogLine(line) {
   const cleaned = line.replace(ANSI_RE, "");
-  let cls = "";
-  if (/\b(ERROR|Error|Traceback|Exception)\b/.test(cleaned)) cls = " log-err";
-  else if (/\b(WARNING|WARN)\b/.test(cleaned)) cls = " log-warn";
-  return `<div class="${cls.trim() || "log-line"}">${escapeHtml(cleaned)}</div>`;
+  const level = classifyLogLine(line);
+  const cls = level === "error" ? "log-err" : level === "warn" ? "log-warn" : "log-line";
+  return `<div class="${cls}" data-level="${level}">${escapeHtml(cleaned)}</div>`;
+}
+
+function filterLogLines() {
+  const box = $("#log-box");
+  const divs = box.querySelectorAll("div[data-level]");
+  divs.forEach((d) => {
+    const level = d.dataset.level;
+    const text = d.textContent;
+    const matchLevel = logFilterLevel === "all" || level === logFilterLevel;
+    const matchSearch = !logSearchQuery || text.toLowerCase().includes(logSearchQuery);
+    d.style.display = matchLevel && matchSearch ? "" : "none";
+  });
 }
 
 async function loadLogs() {
@@ -667,9 +801,22 @@ async function loadLogs() {
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
     box.innerHTML = data.lines.map(escapeLogLine).join("");
     $("#log-file").textContent = "文件：" + data.file;
+    filterLogLines();
     if (atBottom) box.scrollTop = box.scrollHeight;
   } catch (err) {
     $("#log-file").textContent = "读取日志失败：" + err.message;
+  }
+}
+
+async function clearLogs() {
+  if (!confirm("确定要清空日志文件吗？")) return;
+  try {
+    const res = await api("/api/logs/clear", { method: "POST" });
+    if (!res.ok) throw new Error(res.error || "清空失败");
+    $("#log-box").innerHTML = "";
+    $("#log-file").textContent = "日志已清空";
+  } catch (err) {
+    $("#log-file").textContent = "清空失败：" + err.message;
   }
 }
 
@@ -686,6 +833,7 @@ function init() {
   $("#save-sources-btn").addEventListener("click", saveSources);
   $("#select-all-sources-btn").addEventListener("click", () => toggleAllSources(true));
   $("#clear-sources-btn").addEventListener("click", () => toggleAllSources(false));
+  $$(".legend-toggle").forEach((li) => li.addEventListener("click", () => toggleClassSources(li.dataset.class)));
   $("#import-all-btn").addEventListener("click", importAllCookies);
   $("#update-musicdl-btn").addEventListener("click", () => startUpdate("musicdl"));
   $("#update-deps-btn").addEventListener("click", () => startUpdate("deps"));
@@ -693,7 +841,21 @@ function init() {
   $("#deps-check-btn").addEventListener("click", () => loadDepsStatus(true));
   $("#refresh-files-btn").addEventListener("click", loadFiles);
   $("#log-refresh-btn").addEventListener("click", loadLogs);
+  $("#log-clear-btn").addEventListener("click", clearLogs);
+  $$(".log-filter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $$(".log-filter").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      logFilterLevel = btn.dataset.level;
+      filterLogLines();
+    });
+  });
+  $("#log-search").addEventListener("input", (e) => {
+    logSearchQuery = e.target.value.trim().toLowerCase();
+    filterLogLines();
+  });
   $("#restart-btn").addEventListener("click", () => restartServer());
+  $("#shutdown-btn").addEventListener("click", () => shutdownServer());
   $("#log-auto").addEventListener("change", (e) => {
     if (e.target.checked) { logTimer = setInterval(loadLogs, 4000); loadLogs(); }
     else clearInterval(logTimer);
