@@ -69,7 +69,8 @@ def _installed_version(name):
 def _pypi_latest(name, refresh=False):
     now = time.time()
     if not refresh and _DEPS_CACHE["latest"].get(name) is not None:
-        return _DEPS_CACHE["latest"][name]
+        if now - _DEPS_CACHE["ts"] < _DEPS_CACHE_TTL:
+            return _DEPS_CACHE["latest"][name]
     try:
         url = f"https://pypi.org/pypi/{name}/json"
         req = urllib.request.Request(url, headers={"User-Agent": "MusicPlayground/1.0"})
@@ -115,7 +116,9 @@ def _spec_satisfied(installed, spec):
         if op == "<":
             return cur < ver
         if op == "~=":
-            return cur >= ver and cur[0] == ver[0]
+            upper = list(ver[:-1]) if len(ver) > 1 else list(ver)
+            upper[-1] += 1
+            return cur >= ver and cur < tuple(upper)
     except Exception:
         pass
     return True
@@ -223,7 +226,7 @@ def set_cookies():
         return jsonify({"ok": False, "error": f"invalid source: {source}"}), 400
     cookies = parse_cookies_input(data.get("cookies"))
     cookie_manager.set(source, cookies)
-    service._client = None
+    service.reset_client()
     return jsonify({"ok": True, "cookies": cookies})
 
 
@@ -233,7 +236,7 @@ def delete_cookies():
     source = data.get("source")
     if source:
         cookie_manager.delete(source)
-        service._client = None
+        service.reset_client()
     return jsonify({"ok": True})
 
 
@@ -286,7 +289,7 @@ def import_all_cookies():
                 results[QUARK_SOURCE] = 0
         except Exception as err:
             results[QUARK_SOURCE] = "error: " + str(err)
-    service._client = None
+    service.reset_client()
     return jsonify({"ok": True, "total": total, "results": results})
 
 
@@ -452,6 +455,20 @@ def get_logs():
             content = fp.read()
         log_lines = content.splitlines()[-max(1, min(num_lines, 2000)):]
         return jsonify({"ok": True, "file": log_path, "lines": log_lines})
+    except Exception as err:
+        return jsonify({"ok": False, "error": str(err)}), 500
+
+
+@app.route("/api/logs/clear", methods=["POST"])
+def clear_logs():
+    from musicdl.modules.utils.logger import LoggerHandle
+
+    log_path = LoggerHandle.log_file_path
+    try:
+        if os.path.exists(log_path):
+            with open(log_path, "w", encoding="utf-8") as fp:
+                fp.truncate(0)
+        return jsonify({"ok": True, "file": log_path})
     except Exception as err:
         return jsonify({"ok": False, "error": str(err)}), 500
 

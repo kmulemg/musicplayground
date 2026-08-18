@@ -398,6 +398,11 @@ class MusicService:
         self._get_client()
         return list(self._disabled_sources)
 
+    def reset_client(self):
+        with self._lock:
+            self._client = None
+            self._client_cfg_hash = None
+
     def _store(self, kind, songs, source=None, name=None):
         self._seq += 1
         sid = str(self._seq)
@@ -408,7 +413,20 @@ class MusicService:
             "songs": list(songs),
             "created": time.time(),
         }
+        self._trim_library()
         return sid
+
+    def _trim_library(self, max_entries=200):
+        if len(self._library) > max_entries:
+            oldest = sorted(self._library, key=lambda k: self._library[k]["created"])
+            for k in oldest[: len(self._library) - max_entries]:
+                self._library.pop(k, None)
+
+    def _trim_jobs(self, max_entries=50):
+        if len(self._jobs) > max_entries:
+            oldest = sorted(self._jobs, key=lambda k: self._jobs[k]["created"])
+            for k in oldest[: len(self._jobs) - max_entries]:
+                self._jobs.pop(k, None)
 
     def get_songs(self, sid, ids=None):
         entry = self._library.get(sid)
@@ -501,6 +519,7 @@ class MusicService:
             ],
         }
         self._jobs[job_id] = job
+        self._trim_jobs()
         threading.Thread(target=self._run_download, args=(job, songs, mode), daemon=True).start()
         return job_id
 
@@ -628,7 +647,7 @@ class MusicService:
                 if f not in seen:
                     seen.add(f)
                     deduped.append(f)
-            job["files"] = deduped
+            job["files"] = [os.path.relpath(f, self.cm.work_dir) for f in deduped]
             job["status"] = "done"
         except Exception as err:
             job["status"] = "error"

@@ -670,8 +670,8 @@ async function loadJobs() {
     const card = document.createElement("div");
     card.className = "job-card";
     const files = (j.files || []).map((f) => {
-      const rel = f.split(/[\\/]/).pop();
-      return `<a href="/api/download-file/${encodeURIComponent(rel)}" download>${escapeHtml(rel)}</a>`;
+      const name = f.split(/[\\/]/).pop();
+      return `<a href="/api/download-file/${encodeURIComponent(f)}" download>${escapeHtml(name)}</a>`;
     }).join("，");
     const items = (j.items || []).map((it, i) => `
       <div class="job-item">
@@ -769,6 +769,18 @@ async function loadLogs() {
   }
 }
 
+async function clearLogs() {
+  if (!confirm("确定要清空日志文件吗？")) return;
+  try {
+    const res = await api("/api/logs/clear", { method: "POST" });
+    if (!res.ok) throw new Error(res.error || "清空失败");
+    $("#log-box").innerHTML = "";
+    $("#log-file").textContent = "日志已清空";
+  } catch (err) {
+    $("#log-file").textContent = "清空失败：" + err.message;
+  }
+}
+
 function init() {
   $$(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
   $("#search-btn").addEventListener("click", doSearch);
@@ -790,6 +802,7 @@ function init() {
   $("#deps-check-btn").addEventListener("click", () => loadDepsStatus(true));
   $("#refresh-files-btn").addEventListener("click", loadFiles);
   $("#log-refresh-btn").addEventListener("click", loadLogs);
+  $("#log-clear-btn").addEventListener("click", clearLogs);
   $("#restart-btn").addEventListener("click", () => restartServer());
   $("#log-auto").addEventListener("change", (e) => {
     if (e.target.checked) { logTimer = setInterval(loadLogs, 4000); loadLogs(); }
