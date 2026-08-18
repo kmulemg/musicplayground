@@ -33,14 +33,10 @@
 
 **1. 下载本项目**
 
-方式一（推荐）：Git 克隆
 ```bash
 git clone https://github.com/kmulemg/musicplayground.git
 cd musicplayground
 ```
-
-方式二：下载 ZIP 压缩包
-前往 [Releases 页面](https://github.com/kmulemg/musicplayground/releases) 点击「Source code (zip)」下载并解压，进入解压后的目录。
 
 **2. 环境要求**
 - Python 3.8+（本项目在 3.11 上验证）
