@@ -10,7 +10,7 @@ import urllib.request
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from backend import ALL_SOURCES, CookieManager, MusicService, parse_cookies_input, BROWSERS, COOKIE_SUPPORTED_SOURCES, SOURCE_DOMAINS, extract_cookies
+from backend import ALL_SOURCES, CookieManager, MusicService, parse_cookies_input, source_groups, cookie_classes, BROWSERS, COOKIE_SUPPORTED_SOURCES, SOURCE_DOMAINS, extract_cookies, QUARK_SOURCE
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -189,6 +189,10 @@ def get_config():
             "sources": cookie_manager.sources,
             "work_dir": cookie_manager.work_dir,
             "all_sources": ALL_SOURCES,
+            "quark_source": QUARK_SOURCE,
+            "disabled_sources": service.disabled_sources(),
+            "source_groups": source_groups(ALL_SOURCES),
+            "cookie_classes": cookie_classes(ALL_SOURCES),
             "cookie_supported_sources": sorted(COOKIE_SUPPORTED_SOURCES),
             "cookies": cookies,
         }
@@ -206,11 +210,16 @@ def update_config():
     return jsonify({"ok": True})
 
 
+def _valid_cookie_source(source):
+    """合法 cookie 目标：真实音乐源，或虚拟的夸克网盘源。"""
+    return source in ALL_SOURCES or source == QUARK_SOURCE
+
+
 @app.route("/api/cookies", methods=["POST"])
 def set_cookies():
     data = request.get_json(force=True) or {}
     source = data.get("source")
-    if source not in ALL_SOURCES:
+    if not _valid_cookie_source(source):
         return jsonify({"ok": False, "error": f"invalid source: {source}"}), 400
     cookies = parse_cookies_input(data.get("cookies"))
     cookie_manager.set(source, cookies)
@@ -233,7 +242,7 @@ def cookies_from_browser():
     data = request.get_json(force=True) or {}
     source = data.get("source")
     browser = data.get("browser") or "chrome"
-    if source not in ALL_SOURCES:
+    if not _valid_cookie_source(source):
         return jsonify({"ok": False, "error": f"invalid source: {source}"}), 400
     if browser not in BROWSERS:
         return jsonify({"ok": False, "error": f"unsupported browser: {browser}"}), 400
@@ -265,6 +274,18 @@ def import_all_cookies():
                 results[source] = 0
         except Exception as err:
             results[source] = "error: " + str(err)
+    # 夸克网盘 Cookie（虚拟源）：为聚合下载站配置 quark_parser_config
+    if QUARK_SOURCE in COOKIE_SUPPORTED_SOURCES:
+        try:
+            quark_cookies = extract_cookies(QUARK_SOURCE, browser)
+            if quark_cookies:
+                cookie_manager.set(QUARK_SOURCE, quark_cookies)
+                total += len(quark_cookies)
+                results[QUARK_SOURCE] = len(quark_cookies)
+            else:
+                results[QUARK_SOURCE] = 0
+        except Exception as err:
+            results[QUARK_SOURCE] = "error: " + str(err)
     service._client = None
     return jsonify({"ok": True, "total": total, "results": results})
 
@@ -357,6 +378,7 @@ def search():
                 "ok": True,
                 "sid": sid,
                 "songs": [service.song_to_dict(s) for s in songs],
+                "disabled_sources": service.disabled_sources(),
             }
         )
     except Exception as err:
@@ -377,6 +399,7 @@ def parse_playlist():
                 "sid": sid,
                 "source": detected,
                 "songs": [service.song_to_dict(s) for s in songs],
+                "disabled_sources": service.disabled_sources(),
             }
         )
     except Exception as err:
